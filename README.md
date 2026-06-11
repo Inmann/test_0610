@@ -13,6 +13,12 @@ PE(사모펀드) 딜/포트폴리오 대시보드 Streamlit 실습.
 - `data/pe_deals.csv` — 1,500행 × 29열 샘플 데이터
 - `app.py` — Streamlit 대시보드 (`streamlit run app.py`)
 
+### `lp-tracker/`
+LP 출자사업 트래커 — 연기금·공제회 출자사업 공고와 지원 진행 상태를 관리하는 사내 대시보드. Next.js + Tailwind (Supabase 연동 예정).
+- 로컬 실행: `cd lp-tracker; npm run dev`
+- 현재 1단계: 더미 데이터 5건, 새로고침 시 초기화. DB 연동은 2단계.
+- Supabase 테이블 SQL: `lp-tracker/supabase/schema.sql`
+
 ### `samcheonri-club/`
 삼천리 동아리 커뮤니티 — Next.js + Supabase 웹앱.
 - 로컬 실행: `cd samcheonri-club; npm run dev`
