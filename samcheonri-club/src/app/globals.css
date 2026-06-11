@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #056AA6;
+  --color-primary-dark: #044e7a;
+  --color-primary-light: #3a8fc4;
+  --color-primary-50: #eff6fb;
+  --color-primary-100: #d0e8f4;
+  --color-gray-mid: #A8A8A8;
+  --color-gray-light: #e8e8e8;
+  --color-gray-dark: #6b6b6b;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+}
