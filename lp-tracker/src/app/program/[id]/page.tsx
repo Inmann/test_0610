@@ -189,7 +189,7 @@ export default function ProgramDetailPage({
               ))}
             </select>
             <p className="mt-2 text-xs text-slate-400">
-              선택하면 즉시 반영됩니다. (데모 단계: 새로고침 시 초기화)
+              선택하면 즉시 저장됩니다.
             </p>
           </div>
 
