@@ -19,18 +19,21 @@ PE(사모펀드) 딜/포트폴리오 대시보드 Streamlit 실습.
 - 배포 사이트: https://test-0611-omega.vercel.app
 
 #### 배포 방법
-Vercel은 [test_0611](https://github.com/Inmann/test_0611) 저장소(앱이 루트에 위치)에 연결되어 있고,
-이 모노레포에서는 `samcheonri-club/`을 git subtree로 밀어 넣는 방식으로 배포한다.
+Vercel CLI(전역 설치, 로그인 필요)로 `samcheonri-club/`을 직접 프로덕션 배포한다.
+폴더는 Vercel 프로젝트 `test-0611`에 링크되어 있다 (`samcheonri-club/.vercel/`).
 
 ```powershell
 .\deploy.ps1
 ```
 
 스크립트가 하는 일: ① `samcheonri-club/` 변경분 커밋 여부 확인 → ② origin 푸시 →
-③ `git subtree push --prefix=samcheonri-club test0611 main` → Vercel이 자동 빌드·배포.
+③ `vercel deploy --prod` (CLI가 빌드·배포·도메인 연결까지 자동 처리).
 
 환경 변수(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)는
 Vercel 프로젝트(Production)에 등록되어 있다. 값 변경 시 `vercel env` 또는 대시보드에서 수정.
+
+> 참고: [test_0611](https://github.com/Inmann/test_0611) 저장소를 통한 git 연동 배포
+> (`git subtree push --prefix=samcheonri-club test0611 main`)도 여전히 동작하는 백업 경로다.
 
 ## 주의
 `.env` 파일은 `.gitignore`로 제외됩니다. 각 프로젝트의 `.env.example`을 참고해 직접 생성하세요.
