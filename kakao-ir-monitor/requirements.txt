@@ -1,3 +1,0 @@
-anthropic>=0.40.0
-python-dotenv>=1.0.0
-# uiautomation, pywin32 은 Windows 전용 (카카오톡 리더용) — Streamlit Cloud 에서는 불필요
