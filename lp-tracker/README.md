@@ -3,13 +3,19 @@
 연기금·공제회·정책기관의 PEF/VC 출자사업 공고를 등록하고, 접수 마감 D-day와
 우리 회사의 지원 진행 상태를 한 화면에서 관리하는 사내 대시보드.
 
-Next.js (App Router) + TypeScript + Tailwind CSS v4. 추후 Supabase 연동 + Vercel 배포 예정.
+Next.js (App Router) + TypeScript + Tailwind CSS v4 + Supabase.
 
-## 현재 단계 (1단계: 더미 데이터)
+## 배포
 
-- DB 연동 전 단계. `src/data/programs.ts`의 더미 데이터 5건으로 동작.
-- 등록/상태 변경/메모 수정은 화면에서 동작하지만 **새로고침하면 초기화**됨 (인메모리 스토어 `src/lib/store.tsx`).
-- 다음 단계에서 스토어 내부를 Supabase 호출로 교체.
+- **프로덕션**: https://lp-tracker-iota.vercel.app
+- `main` 브랜치에 push하면 Vercel이 자동으로 빌드·배포 (Root Directory: `lp-tracker`)
+- 환경변수(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)는 Vercel 프로젝트에 등록되어 있음
+- 배포 검증: `node scripts/verify-prod.mjs` (읽기 전용 E2E 12개 항목)
+
+## 현재 단계 (3단계 완료: Supabase 연동 + Vercel 배포)
+
+- 모든 데이터는 Supabase `programs` 테이블에 영구 저장 (`src/lib/store.tsx`).
+- 등록/상태 변경/메모 수정이 즉시 DB에 반영되고 새로고침해도 유지됨.
 
 ## 페이지
 
