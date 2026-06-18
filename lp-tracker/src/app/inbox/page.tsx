@@ -71,6 +71,11 @@ function AnnouncementRow({
           <span className="text-xs text-slate-400">
             {formatDate(a.announced_at)}
           </span>
+          {a.irrelevant && a.irrelevant_reason && (
+            <span className="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+              무관: {a.irrelevant_reason}
+            </span>
+          )}
         </div>
         <a
           href={a.source_url}
@@ -126,9 +131,11 @@ export default function InboxPage() {
     scraper,
     q,
     untriagedOnly,
+    relevantOnly,
     setScraper,
     setQ,
     setUntriagedOnly,
+    setRelevantOnly,
     hasMore,
     loadMore,
     reload,
@@ -215,15 +222,26 @@ export default function InboxPage() {
           )}
         </form>
 
-        <label className="flex shrink-0 items-center gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={untriagedOnly}
-            onChange={(e) => setUntriagedOnly(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
-          />
-          미처리만 보기
-        </label>
+        <div className="flex shrink-0 items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={relevantOnly}
+              onChange={(e) => setRelevantOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            관련 공고만
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={untriagedOnly}
+              onChange={(e) => setUntriagedOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            미처리만 보기
+          </label>
+        </div>
       </div>
 
       {actionError && (

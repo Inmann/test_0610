@@ -14,6 +14,7 @@ import { scrapeKvic } from './scrapers/kvic.mjs'
 import { scrapeKvca } from './scrapers/kvca.mjs'
 import { scrapeKgrowth } from './scrapers/kgrowth.mjs'
 import { scrapeNps } from './scrapers/nps.mjs'
+import { classifyTitle } from './scrapers/classify.mjs'
 
 // ── 설정 ──────────────────────────────────────────────────────
 
@@ -77,10 +78,13 @@ for (const scraper of SCRAPERS) {
     continue
   }
 
+  // 관련성 자동 분류(채용·MMF·리츠·결과·전통자산 등 노이즈에 flag) 후 저장
+  const rows = items.map((it) => ({ ...it, ...classifyTitle(it.title) }))
+
   // Supabase upsert (source_url 중복 시 무시)
   const { data: inserted, error } = await supabase
     .from('announcements')
-    .upsert(items, { onConflict: 'source_url', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: 'source_url', ignoreDuplicates: true })
     .select('id')
 
   if (error) {

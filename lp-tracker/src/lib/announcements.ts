@@ -15,6 +15,8 @@ export type Announcement = {
   promoted: boolean;
   program_id: string | null;
   created_at: string;
+  irrelevant: boolean; // 자동 분류: 우리 도메인과 무관(채용·MMF·리츠·결과 등)
+  irrelevant_reason: string | null;
 };
 
 // 수집 출처 코드 → 표시용 한글 라벨
@@ -38,6 +40,7 @@ export function useAnnouncementInbox() {
   const [scraper, setScraperRaw] = useState<string | null>(null);
   const [q, setQRaw] = useState("");
   const [untriagedOnly, setUntriagedOnlyRaw] = useState(true);
+  const [relevantOnly, setRelevantOnlyRaw] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -60,6 +63,7 @@ export function useAnnouncementInbox() {
       .range(0, limit - 1);
 
     if (untriagedOnly) query = query.eq("promoted", false);
+    if (relevantOnly) query = query.eq("irrelevant", false);
     if (scraper) query = query.eq("scraper", scraper);
     if (q.trim()) query = query.ilike("title", `%${q.trim()}%`);
 
@@ -78,7 +82,7 @@ export function useAnnouncementInbox() {
     return () => {
       cancelled = true;
     };
-  }, [scraper, q, untriagedOnly, limit, reloadKey]);
+  }, [scraper, q, untriagedOnly, relevantOnly, limit, reloadKey]);
 
   // 필터를 바꾸면 페이지를 처음으로 되돌린다.
   const setScraper = (s: string | null) => {
@@ -93,6 +97,10 @@ export function useAnnouncementInbox() {
     setLimit(PAGE_SIZE);
     setUntriagedOnlyRaw(b);
   };
+  const setRelevantOnly = (b: boolean) => {
+    setLimit(PAGE_SIZE);
+    setRelevantOnlyRaw(b);
+  };
 
   return {
     items,
@@ -102,9 +110,11 @@ export function useAnnouncementInbox() {
     scraper,
     q,
     untriagedOnly,
+    relevantOnly,
     setScraper,
     setQ,
     setUntriagedOnly,
+    setRelevantOnly,
     hasMore: items.length < total,
     loadMore: () => setLimit((l) => l + PAGE_SIZE),
     reload: () => setReloadKey((k) => k + 1),
@@ -122,6 +132,7 @@ export function useUntriagedCount(): number | null {
       .from("announcements")
       .select("*", { count: "exact", head: true })
       .eq("promoted", false)
+      .eq("irrelevant", false)
       .then(({ count: c, error }) => {
         if (!cancelled && !error) setCount(c ?? 0);
       });

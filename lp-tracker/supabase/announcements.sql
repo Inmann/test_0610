@@ -11,11 +11,16 @@ create table public.announcements (
   announced_at  date,                          -- 공고 작성일
   promoted      boolean not null default false, -- programs 테이블로 승격 여부
   program_id    uuid references public.programs(id) on delete set null,
+  irrelevant        boolean not null default false, -- 자동 분류: 우리 도메인과 무관(채용·MMF·리츠·결과 등)
+  irrelevant_reason text,                            -- 제외 사유 (예: '결과·현황', '채용')
   created_at    timestamptz not null default now()
 );
 
 create index announcements_announced_at_idx on public.announcements (announced_at desc);
 create index announcements_not_promoted_idx on public.announcements (promoted) where not promoted;
+-- 수집함 기본 화면: 미처리 + 관련 공고
+create index announcements_relevant_inbox_idx on public.announcements (announced_at desc)
+  where not promoted and not irrelevant;
 
 -- RLS: 사내 전용이므로 anon 포함 전체 허용 (현재 programs 테이블과 동일 정책)
 alter table public.announcements enable row level security;
