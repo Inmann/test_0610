@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import ProgramCard from "@/components/ProgramCard";
 import { daysUntil } from "@/lib/date";
 import { usePrograms } from "@/lib/store";
 import { useToday } from "@/lib/useToday";
+import { useUntriagedCount } from "@/lib/announcements";
 import { CATEGORIES, STATUSES, type Category, type OurStatus } from "@/lib/types";
 
 const IN_PROGRESS_STATUSES: OurStatus[] = ["지원예정", "제안서제출", "PT"];
@@ -45,6 +47,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export default function DashboardPage() {
   const { programs, loading, error } = usePrograms();
   const today = useToday();
+  const untriaged = useUntriagedCount();
   const [category, setCategory] = useState<Category | "전체">("전체");
   const [status, setStatus] = useState<OurStatus | "전체">("전체");
 
@@ -102,6 +105,21 @@ export default function DashboardPage() {
           마감 임박순으로 정렬됩니다. 카드를 누르면 상세 화면으로 이동합니다.
         </p>
       </div>
+
+      {untriaged !== null && untriaged > 0 && (
+        <Link
+          href="/inbox"
+          className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 transition-colors hover:bg-blue-100"
+        >
+          <span className="text-sm text-blue-800">
+            📥 매일 자동 수집된 공고{" "}
+            <strong>{untriaged.toLocaleString()}건</strong>이 검토를 기다리고 있어요. 추적할 공고를 골라보세요.
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-blue-700">
+            수집함 열기 →
+          </span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="접수중 공고" value={`${open.length}건`} />
