@@ -12,9 +12,16 @@
 
 import { GoogleGenAI } from '@google/genai'
 
-export const MODEL = 'gemini-2.5-flash'
-export const CHUNK_SIZE = 30
-const REQUEST_DELAY_MS = 4000 // 무료 RPM(분당 요청수) 한도 회피용 청크 간 지연
+// 이 무료 키는 모델마다 하루 20요청 한도. 큰 청크로 묶어 ~18요청에 전체를 끝낸다.
+// 정확도가 아쉬우면 MODEL/CHUNK_SIZE 조정.
+export const MODEL = 'gemini-flash-lite-latest'
+export const CHUNK_SIZE = 150 // 누락 인덱스는 관련으로 안전 처리
+const REQUEST_DELAY_MS = 4500 // 분당 요청수(RPM) 회피용 청크 간 지연
+
+/** 오늘 회복 불가한 한도(일일/할당0)면 true → 즉시 중단해야 함 */
+export function isDailyQuotaError(err) {
+  return /PerDay|limit:\s*0|GenerateRequestsPerDay/i.test(String(err?.message ?? err))
+}
 
 export const REASON_CATEGORIES = [
   '채용',
@@ -99,9 +106,11 @@ async function classifyChunk(ai, titles) {
       })
       return parseClassification(res.text, titles)
     } catch (err) {
+      // 일일 한도/할당0은 오늘 회복 불가 → 즉시 중단(백필이 진행분 저장 후 종료)
+      if (isDailyQuotaError(err)) throw err
       const msg = String(err?.message ?? err)
-      // 429(쿼터/RPM) 또는 일시 오류 → 지수 백오프 재시도
-      if (/429|quota|rate|RESOURCE_EXHAUSTED|503|overloaded/i.test(msg) && attempt < 3) {
+      // 분당 한도(RPM)·일시 오류(503)만 백오프 재시도
+      if (/429|rate|PerMinute|RESOURCE_EXHAUSTED|503|overloaded|UNAVAILABLE/i.test(msg) && attempt < 3) {
         await sleep(REQUEST_DELAY_MS * (attempt + 2))
         continue
       }
@@ -116,7 +125,7 @@ async function classifyChunk(ai, titles) {
  * 제목 배열을 30개씩 묶어 분류. onProgress(done, total) 콜백 선택.
  * 키 없으면 throw → 호출부에서 키워드 규칙으로 폴백.
  */
-export async function classifyTitlesLLM(titles, { chunkSize = CHUNK_SIZE, onProgress } = {}) {
+export async function classifyTitlesLLM(titles, { chunkSize = CHUNK_SIZE, onProgress, onChunk } = {}) {
   if (!hasGeminiKey()) throw new Error('GEMINI_API_KEY 환경변수 누락')
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
   const out = []
@@ -124,6 +133,8 @@ export async function classifyTitlesLLM(titles, { chunkSize = CHUNK_SIZE, onProg
     const chunk = titles.slice(i, i + chunkSize)
     const verdicts = await classifyChunk(ai, chunk)
     out.push(...verdicts)
+    // 청크 결과를 즉시 넘겨 부분 진행을 저장할 수 있게 함 (백필 중단 대비)
+    if (onChunk) await onChunk(verdicts, i)
     if (onProgress) onProgress(Math.min(i + chunkSize, titles.length), titles.length)
     if (i + chunkSize < titles.length) await sleep(REQUEST_DELAY_MS)
   }

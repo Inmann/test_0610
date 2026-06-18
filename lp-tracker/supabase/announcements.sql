@@ -13,6 +13,7 @@ create table public.announcements (
   program_id    uuid references public.programs(id) on delete set null,
   irrelevant        boolean not null default false, -- 자동 분류: 우리 도메인과 무관(채용·MMF·리츠·결과 등)
   irrelevant_reason text,                            -- 제외 사유 (예: '결과·현황', '채용')
+  classified_by     text,                            -- 분류 출처: 'llm'(Gemini) | null(키워드 규칙). 백필 재실행 이어가기용
   created_at    timestamptz not null default now()
 );
 
