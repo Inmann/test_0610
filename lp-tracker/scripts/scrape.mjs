@@ -10,6 +10,9 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { scrapeKofia } from './scrapers/kofia.mjs'
+import { scrapeKvic } from './scrapers/kvic.mjs'
+import { scrapeKvca } from './scrapers/kvca.mjs'
+import { scrapeKgrowth } from './scrapers/kgrowth.mjs'
 
 // ── 설정 ──────────────────────────────────────────────────────
 
@@ -18,14 +21,11 @@ const MAX_PAGES_DAILY = 3
 const MAX_PAGES_FULL = 999
 
 const SCRAPERS = [
-  {
-    name: 'kofia',
-    fn: (opts) => scrapeKofia(opts),
-  },
-  // Phase 4-B에서 추가 예정:
-  // { name: 'kvca', fn: (opts) => scrapeKvca(opts) },
-  // { name: 'kvic', fn: (opts) => scrapeKvic(opts) },
-  // { name: 'kgrowth', fn: (opts) => scrapeKgrowth(opts) },
+  { name: 'kofia', fn: (opts) => scrapeKofia(opts) },
+  { name: 'kvic', fn: (opts) => scrapeKvic(opts) },
+  { name: 'kvca', fn: (opts) => scrapeKvca(opts) },
+  { name: 'kgrowth', fn: (opts) => scrapeKgrowth(opts) },
+  // Phase 4-D 예정: { name: 'nps', fn: (opts) => scrapeNps(opts) },
 ]
 
 // ── Supabase 클라이언트 ─────────────────────────────────────────
