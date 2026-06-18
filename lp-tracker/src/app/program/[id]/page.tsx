@@ -6,7 +6,7 @@ import { CategoryBadge, DdayBadge, StatusBadge } from "@/components/Badges";
 import { daysUntil, formatDate } from "@/lib/date";
 import { usePrograms } from "@/lib/store";
 import { useToday } from "@/lib/useToday";
-import { STATUSES, type OurStatus, type Program } from "@/lib/types";
+import { STATUSES, type OurStatus } from "@/lib/types";
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -32,10 +32,12 @@ export default function ProgramDetailPage({
   const [saveError, setSaveError] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 프로그램 데이터가 로드된 후 memoDraft 초기화 (처음 render 시 program이 undefined일 수 있음)
-  const prevProgramRef = useRef<Program | undefined>(undefined);
-  if (program && prevProgramRef.current?.id !== program.id) {
-    prevProgramRef.current = program;
+  // 프로그램 데이터가 로드된 후(혹은 다른 공고로 전환되면) memoDraft 초기화.
+  // 렌더 중 ref를 읽고 쓰면 React 19 규칙(react-hooks/refs)에 걸리므로,
+  // 이전 공고 id를 state로 추적하는 공식 패턴을 사용한다.
+  const [prevProgramId, setPrevProgramId] = useState<string | undefined>(undefined);
+  if (program && prevProgramId !== program.id) {
+    setPrevProgramId(program.id);
     setMemoDraft(program.memo ?? "");
   }
 
