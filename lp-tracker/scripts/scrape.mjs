@@ -13,6 +13,7 @@ import { scrapeKofia } from './scrapers/kofia.mjs'
 import { scrapeKvic } from './scrapers/kvic.mjs'
 import { scrapeKvca } from './scrapers/kvca.mjs'
 import { scrapeKgrowth } from './scrapers/kgrowth.mjs'
+import { scrapeNps } from './scrapers/nps.mjs'
 
 // ── 설정 ──────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ const SCRAPERS = [
   { name: 'kvic', fn: (opts) => scrapeKvic(opts) },
   { name: 'kvca', fn: (opts) => scrapeKvca(opts) },
   { name: 'kgrowth', fn: (opts) => scrapeKgrowth(opts) },
-  // Phase 4-D 예정: { name: 'nps', fn: (opts) => scrapeNps(opts) },
+  { name: 'nps', fn: (opts) => scrapeNps(opts) },
 ]
 
 // ── Supabase 클라이언트 ─────────────────────────────────────────
