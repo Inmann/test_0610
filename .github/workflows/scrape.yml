@@ -1,0 +1,59 @@
+name: 출자공고 자동 수집
+
+# 매일 오전 9시(KST) 4개 기관 공고를 수집해 Supabase announcements 테이블에 저장.
+# - schedule: GitHub Actions cron은 UTC 기준 → 00:00 UTC == 09:00 KST
+# - workflow_dispatch: GitHub UI에서 수동 실행(테스트용). full=true면 과거 공고까지 전체 재수집.
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "전체 재수집(과거 공고 포함). 체크하지 않으면 일일 증분만 수집."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 동시 실행 방지(이전 실행이 안 끝났으면 새 실행이 대기/취소)
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: lp-tracker
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lp-tracker/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 공고 수집
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}
+          FULL: ${{ inputs.full }}
+        run: |
+          if [ "$FULL" = "true" ]; then
+            echo "전체 재수집 모드"
+            node scripts/scrape.mjs --full
+          else
+            echo "일일 증분 수집 모드"
+            node scripts/scrape.mjs
+          fi
