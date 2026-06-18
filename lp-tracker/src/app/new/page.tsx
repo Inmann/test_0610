@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { usePrograms } from "@/lib/store";
 import { CATEGORIES, STATUSES, type Category, type OurStatus } from "@/lib/types";
+import { fetchAnnouncement, linkAnnouncementToProgram } from "@/lib/announcements";
 
 type FormState = {
   institution: string;
@@ -61,22 +62,47 @@ function Field({
   );
 }
 
-export default function NewProgramPage() {
+function NewProgramForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const annId = params.get("ann");
   const { addProgram } = usePrograms();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fromAnnouncement, setFromAnnouncement] = useState(false);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // ?ann=<id> 로 들어오면 수집된 공고 정보를 폼에 미리 채운다 (최초 1회).
+  // 분야(category)·마감일(deadline)은 공고에 없으므로 사용자가 입력한다.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (!annId || prefilled.current) return;
+    prefilled.current = true;
+    fetchAnnouncement(annId).then((a) => {
+      if (!a) return;
+      setFromAnnouncement(true);
+      setForm((prev) => ({
+        ...prev,
+        institution: a.institution ?? prev.institution,
+        title: a.title || prev.title,
+        url: a.source_url || prev.url,
+        announce_date:
+          a.announced_at && /^\d{4}-\d{2}-\d{2}$/.test(a.announced_at)
+            ? a.announced_at
+            : prev.announce_date,
+      }));
+    });
+  }, [annId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await addProgram({
+      const newId = await addProgram({
         institution: form.institution.trim(),
         title: form.title.trim(),
         category: form.category,
@@ -90,7 +116,17 @@ export default function NewProgramPage() {
         our_status: form.our_status,
         memo: form.memo.trim(),
       });
-      router.push("/");
+      // 수집 공고에서 온 경우, 해당 announcement를 이 program에 연결(promoted 처리)
+      if (annId) {
+        try {
+          await linkAnnouncementToProgram(annId, newId);
+        } catch {
+          /* program은 이미 생성됨 — 연결 실패는 치명적이지 않음 */
+        }
+        router.push("/inbox");
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.");
       setSubmitting(false);
@@ -105,6 +141,12 @@ export default function NewProgramPage() {
           새 출자사업 공고 정보를 입력하세요.
         </p>
       </div>
+
+      {fromAnnouncement && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          수집된 공고에서 가져왔습니다. <strong>분야</strong>와 <strong>접수 마감일</strong>을 확인·입력한 뒤 저장하세요.
+        </div>
+      )}
 
       {submitError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -270,5 +312,20 @@ export default function NewProgramPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// useSearchParams는 Suspense 경계가 필요하다 (Next.js App Router).
+export default function NewProgramPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-2xl py-10 text-sm text-slate-500">
+          불러오는 중…
+        </div>
+      }
+    >
+      <NewProgramForm />
+    </Suspense>
   );
 }

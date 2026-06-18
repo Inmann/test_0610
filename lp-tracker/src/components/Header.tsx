@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUntriagedCount } from "@/lib/announcements";
 
 const NAV = [
   { href: "/", label: "대시보드" },
+  { href: "/inbox", label: "수집함" },
   { href: "/archive", label: "아카이브" },
 ];
 
 export default function Header() {
   const pathname = usePathname();
+  const untriaged = useUntriagedCount();
 
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
@@ -27,17 +30,23 @@ export default function Header() {
         <nav className="flex items-center gap-1 text-sm">
           {NAV.map((item) => {
             const active = pathname === item.href;
+            const showBadge = item.href === "/inbox" && !!untriaged && untriaged > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${
                   active
                     ? "bg-slate-100 font-semibold text-slate-900"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 {item.label}
+                {showBadge && (
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-bold text-white">
+                    {untriaged > 99 ? "99+" : untriaged}
+                  </span>
+                )}
               </Link>
             );
           })}
