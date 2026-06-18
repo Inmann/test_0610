@@ -15,6 +15,20 @@ import { scrapeKvca } from './scrapers/kvca.mjs'
 import { scrapeKgrowth } from './scrapers/kgrowth.mjs'
 import { scrapeNps } from './scrapers/nps.mjs'
 import { classifyTitle } from './scrapers/classify.mjs'
+import { classifyTitlesLLM, hasAnthropicKey } from './scrapers/classify-llm.mjs'
+
+// 신규 수집분 분류: ANTHROPIC_API_KEY가 있으면 LLM(Claude), 없거나 실패하면 키워드 규칙으로 폴백.
+async function classifyItems(items) {
+  if (hasAnthropicKey()) {
+    try {
+      const verdicts = await classifyTitlesLLM(items.map((it) => it.title))
+      return items.map((it, idx) => ({ ...it, ...verdicts[idx] }))
+    } catch (err) {
+      console.error(`  ⚠️ LLM 분류 실패 → 키워드 규칙으로 대체: ${err.message}`)
+    }
+  }
+  return items.map((it) => ({ ...it, ...classifyTitle(it.title) }))
+}
 
 // ── 설정 ──────────────────────────────────────────────────────
 
@@ -79,7 +93,7 @@ for (const scraper of SCRAPERS) {
   }
 
   // 관련성 자동 분류(채용·MMF·리츠·결과·전통자산 등 노이즈에 flag) 후 저장
-  const rows = items.map((it) => ({ ...it, ...classifyTitle(it.title) }))
+  const rows = await classifyItems(items)
 
   // Supabase upsert (source_url 중복 시 무시)
   const { data: inserted, error } = await supabase

@@ -8,9 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "scrape": "node --env-file=.env.local scripts/scrape.mjs",
-    "scrape:full": "node --env-file=.env.local scripts/scrape.mjs --full"
+    "scrape:full": "node --env-file=.env.local scripts/scrape.mjs --full",
+    "classify:llm": "node --env-file=.env.local scripts/classify-llm-backfill.mjs",
+    "classify:llm:dry": "node --env-file=.env.local scripts/classify-llm-backfill.mjs --dry"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "next": "16.2.9",
@@ -19,13 +22,13 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "node-html-parser": "^7.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "node-html-parser": "^7.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
