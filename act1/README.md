@@ -65,6 +65,8 @@ python tts.py
 python assemble.py --dry-run        # → output/act1.mp4 (all slates)
 
 # 3. Review. Then fill in clips_raw/ over a few days (re-roll bad shots freely).
+#    (optional) auto-check generated clips and cull broken ones:
+python qc.py                        # report; add --quarantine to move bad clips aside
 
 # 4. Build the real film. Re-run any time — only changed/new shots rebuild.
 python assemble.py                  # → output/act1.mp4
@@ -92,9 +94,17 @@ to `clips_raw/{id}.mp4`. **Resumable** (skips shots that already have a clip).
 |---|---|---|---|
 | `webgen_veo.py` | Google AI Studio (**Veo**) | `t2v` — locations, skies, the map | `prompt` (text-to-video) |
 | `webgen_seedance.py` | **Seedance** | `i2v` — people / couple shots | `ref_photo` + `prompt` (image-to-video) |
+| `webgen_luma.py` | **Luma** Dream Machine | `t2v` — big camera moves (dolly/aerial) | `prompt` (text-to-video) |
 
-Both share one engine (`webgen_common.py`); the wrappers just hold each site's URL and
-selectors.
+All three share one engine (`webgen_common.py`); the wrappers just hold each site's
+URL and selectors.
+
+**Routing a shot to a specific tool.** Veo and Luma are both text-to-video. By
+default a generator picks up the shots matching its type; to pin a shot to one tool,
+add a `"tool"` field in `shots.json` (e.g. `"tool": "luma"` on a big-aerial shot).
+Tagged shots go *only* to that tool; untagged `t2v` shots go to whichever t2v
+generator you run first (the others skip them — clips are skip-if-exists). You can
+also just target shots ad hoc with `--only`.
 
 > **These run on YOUR machine, not in a CI sandbox.** They need the open internet and
 > your login. You're automating your own free-tier usage — keep the browser window
@@ -123,6 +133,12 @@ python webgen_seedance.py           # generate every i2v shot that has no clip y
 python webgen_seedance.py --only t5 t14
 ```
 
+**Run — Luma (t2v / big camera moves):**
+```bash
+python webgen_luma.py --inspect     # sign in once / grab selectors
+python webgen_luma.py --only t12 t18 # the aerial / pull-back shots
+```
+
 **If a step can't find its element** (these sites ship UI changes), the selectors are
 ordered candidate lists (role/text based) at the top of each wrapper — edit them, or
 record fresh ones with:
@@ -130,7 +146,37 @@ record fresh ones with:
 playwright codegen aistudio.google.com     # or: playwright codegen seedance.com
 ```
 
-Then continue the normal run order: `python tts.py` → `python assemble.py`.
+Then continue the normal run order: `python qc.py` → `python tts.py` → `python assemble.py`.
+
+---
+
+## Quality-checking the clips — `qc.py`
+
+Free web-tool clips occasionally come back broken (an empty render, a black frame, a
+single frozen frame). `qc.py` scans `clips_raw/{id}.mp4` for every shot and flags:
+
+| Flag | Meaning |
+|---|---|
+| `missing` | no clip generated yet |
+| `corrupt` | unreadable / ~zero duration |
+| `too-short` | shorter than `--min-dur` seconds (default 1.0) |
+| `black` | more than `--black` of the clip is black (default 0.5) |
+| `static` | more than `--freeze` of the clip is a frozen frame (default 0.95) |
+
+```bash
+python qc.py                       # report table + summary (exits non-zero if anything is flagged)
+python qc.py --json cache/qc.json  # also write a machine-readable report
+python qc.py --quarantine          # MOVE flagged clips to clips_raw/_rejected/ …
+```
+
+With `--quarantine`, flagged clips are moved aside, so the resumable generators
+re-make exactly those shots on the next run. The loop to re-roll bad shots is:
+
+```bash
+python webgen_veo.py     # (and/or seedance/luma) → generate
+python qc.py --quarantine # → cull the bad ones
+python webgen_veo.py     # → regenerate only what was culled
+```
 
 ---
 
@@ -150,7 +196,8 @@ Each shot:
   "treatment": "grayscale",         // grayscale | color_bloom | normal
   "vo_text": "You left the way ...",// voiceover line + burned-in lower-third caption
   "vo_voice": "henry",              // henry | erika (mapped to edge-tts voices in config.py)
-  "caption_es": "Te fuiste ..."     // optional Spanish subtitle (second line)
+  "caption_es": "Te fuiste ...",    // optional Spanish subtitle (second line)
+  "tool": "luma"                    // optional: pin this shot's generator (veo | seedance | luma)
 }
 ```
 

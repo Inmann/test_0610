@@ -210,7 +210,14 @@ def run(tool, default_types):
         for shot in shots:
             if only and shot["id"] not in only:
                 continue
-            if want_types is not None and shot.get("type") not in want_types:
+            # Routing: a shot may pin its generator via an optional "tool" field
+            # (e.g. "tool": "luma" for a big-camera-move shot). When set, only the
+            # matching generator handles it; otherwise fall back to the type filter.
+            explicit = (shot.get("tool") or "").strip().lower()
+            if explicit:
+                if explicit != tool.name:
+                    continue
+            elif want_types is not None and shot.get("type") not in want_types:
                 continue
             if (config.CLIPS_DIR / f"{shot['id']}.mp4").exists():
                 counts["cached"] = counts.get("cached", 0) + 1
