@@ -81,19 +81,26 @@ python assemble.py --keep-temp      # keep the intermediate video/audio files
 
 ---
 
-## Semi-automating the `t2v` clips — `webgen_veo.py` (optional)
+## Semi-automating clip generation — `webgen_*` (optional)
 
 Generating clips is the one step with no free *API*, so it's normally done by hand.
-`webgen_veo.py` automates the **`t2v`** shots (locations, skies, the map) by driving
-**Google AI Studio (Veo)** in a real browser — no paid API, no key. It reads
-`shots.json`, types each shot's `prompt` into Veo, generates the video, and saves it
-to `clips_raw/{id}.mp4`. It's **resumable** (skips shots that already have a clip).
+These scripts automate it by driving the free web tools in a **real browser** — no
+paid API, no key. They read `shots.json`, drive the tool per shot, and save each clip
+to `clips_raw/{id}.mp4`. **Resumable** (skips shots that already have a clip).
 
-> **This runs on YOUR machine, not in a CI sandbox.** It needs the open internet and
-> your Google login. You're automating your own free-tier usage — keep the browser
-> window visible (to solve any captcha) and respect Veo's daily credit limits and the
-> tool's Terms of Service. Veo is **text-to-video**, so use this for `t2v` shots;
-> generate the `i2v` (people / `ref_photo`) shots by hand in Seedance.
+| Script | Tool | Shots | Input |
+|---|---|---|---|
+| `webgen_veo.py` | Google AI Studio (**Veo**) | `t2v` — locations, skies, the map | `prompt` (text-to-video) |
+| `webgen_seedance.py` | **Seedance** | `i2v` — people / couple shots | `ref_photo` + `prompt` (image-to-video) |
+
+Both share one engine (`webgen_common.py`); the wrappers just hold each site's URL and
+selectors.
+
+> **These run on YOUR machine, not in a CI sandbox.** They need the open internet and
+> your login. You're automating your own free-tier usage — keep the browser window
+> visible (to solve any captcha) and respect each tool's daily credit caps and Terms
+> of Service. Sign in once per tool; the session persists in
+> `webgen_profile_<tool>/` (gitignored).
 
 **Setup (once):**
 ```bash
@@ -101,23 +108,26 @@ pip install playwright
 playwright install chromium
 ```
 
-**Run:**
+**Run — Veo (t2v / places):**
 ```bash
-python webgen_veo.py --inspect      # opens AI Studio paused: sign in once (session is saved),
-                                    # and/or grab selectors if the UI has moved
+python webgen_veo.py --inspect      # opens AI Studio paused: sign in once, and/or grab selectors
 python webgen_veo.py                # generate every t2v shot that has no clip yet
 python webgen_veo.py --only t2 t11  # just these shot ids
-python webgen_veo.py --types all    # attempt all shots (Veo is t2v-only; prefer t2v)
-python webgen_veo.py --gen-timeout 360
 ```
 
-The login session is stored in `webgen_profile/` (gitignored) so you only sign in once.
-
-**If a step can't find its element** (Google ships UI changes), the selectors are
-centralized at the top of `webgen_veo.py` as ordered candidate lists (role/text based).
-Update them, or record fresh ones with:
+**Run — Seedance (i2v / people):** put each shot's reference photo where its
+`ref_photo` field points (e.g. `refs/t5.jpg`), then:
 ```bash
-playwright codegen aistudio.google.com
+python webgen_seedance.py --inspect # sign in once / grab selectors
+python webgen_seedance.py           # generate every i2v shot that has no clip yet
+python webgen_seedance.py --only t5 t14
+```
+
+**If a step can't find its element** (these sites ship UI changes), the selectors are
+ordered candidate lists (role/text based) at the top of each wrapper — edit them, or
+record fresh ones with:
+```bash
+playwright codegen aistudio.google.com     # or: playwright codegen seedance.com
 ```
 
 Then continue the normal run order: `python tts.py` → `python assemble.py`.

@@ -14,8 +14,8 @@ assets/music/*
 !refs/.gitkeep
 !assets/music/.gitkeep
 
-# Playwright login session for webgen_veo.py (contains your Google auth — never commit).
-webgen_profile/
+# Playwright login sessions for the web-tool generators (your Google auth — never commit).
+webgen_profile_*/
 
 __pycache__/
 *.pyc
