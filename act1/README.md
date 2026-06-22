@@ -53,7 +53,8 @@ Verify: `ffmpeg -version` and `python -c "import edge_tts"` should both succeed.
 ## Run order
 
 ```bash
-# 0. (you, by hand) generate clips into clips_raw/ — see the playbook below.
+# 0. Generate clips into clips_raw/ — by hand (playbook below) OR semi-automated for
+#    the t2v shots with webgen_veo.py (drives Google AI Studio Veo — see next section).
 #    You do NOT need them all to start; the dry run uses placeholders.
 
 # 1. Synthesize voiceover (free, resumable — skips cached/own recordings)
@@ -77,6 +78,49 @@ python tts.py --force               # re-synthesize everything
 python assemble.py --force          # rebuild every segment (ignore cache)
 python assemble.py --keep-temp      # keep the intermediate video/audio files
 ```
+
+---
+
+## Semi-automating the `t2v` clips — `webgen_veo.py` (optional)
+
+Generating clips is the one step with no free *API*, so it's normally done by hand.
+`webgen_veo.py` automates the **`t2v`** shots (locations, skies, the map) by driving
+**Google AI Studio (Veo)** in a real browser — no paid API, no key. It reads
+`shots.json`, types each shot's `prompt` into Veo, generates the video, and saves it
+to `clips_raw/{id}.mp4`. It's **resumable** (skips shots that already have a clip).
+
+> **This runs on YOUR machine, not in a CI sandbox.** It needs the open internet and
+> your Google login. You're automating your own free-tier usage — keep the browser
+> window visible (to solve any captcha) and respect Veo's daily credit limits and the
+> tool's Terms of Service. Veo is **text-to-video**, so use this for `t2v` shots;
+> generate the `i2v` (people / `ref_photo`) shots by hand in Seedance.
+
+**Setup (once):**
+```bash
+pip install playwright
+playwright install chromium
+```
+
+**Run:**
+```bash
+python webgen_veo.py --inspect      # opens AI Studio paused: sign in once (session is saved),
+                                    # and/or grab selectors if the UI has moved
+python webgen_veo.py                # generate every t2v shot that has no clip yet
+python webgen_veo.py --only t2 t11  # just these shot ids
+python webgen_veo.py --types all    # attempt all shots (Veo is t2v-only; prefer t2v)
+python webgen_veo.py --gen-timeout 360
+```
+
+The login session is stored in `webgen_profile/` (gitignored) so you only sign in once.
+
+**If a step can't find its element** (Google ships UI changes), the selectors are
+centralized at the top of `webgen_veo.py` as ordered candidate lists (role/text based).
+Update them, or record fresh ones with:
+```bash
+playwright codegen aistudio.google.com
+```
+
+Then continue the normal run order: `python tts.py` → `python assemble.py`.
 
 ---
 
