@@ -317,8 +317,17 @@ def build_audio(shots, total, out_path, start_of=None):
         return float(start_of[s["id"]]) if start_of else float(s["start"])
 
     vo_items = []  # (input_index, shot, vo_path, start, length)
-    inputs = ["-stream_loop", "-1", "-i", str(config.MUSIC_PATH)]  # input 0 = music
-    idx = 1
+    # Only add the music file as an input when it actually exists — otherwise ffmpeg
+    # would fail opening a missing input. Without music we synthesize a silent bed,
+    # so the VO inputs (and the [N:a] indices below) start at 0 instead of 1.
+    music_present = config.MUSIC_PATH.exists()
+    inputs, idx = [], 0
+    if music_present:
+        inputs += ["-stream_loop", "-1", "-i", str(config.MUSIC_PATH)]  # input 0 = music
+        idx = 1
+    else:
+        print(f"  [warn] music not found at {config.MUSIC_PATH} — film will have VO only "
+              f"(or silence).")
     for shot in shots:
         vo = util.vo_audio_for(shot)
         if not vo:
@@ -327,10 +336,6 @@ def build_audio(shots, total, out_path, start_of=None):
         inputs += ["-i", str(vo)]
         vo_items.append((idx, shot, vo, shot_start(shot), length))
         idx += 1
-
-    if not config.MUSIC_PATH.exists():
-        print(f"  [warn] music not found at {config.MUSIC_PATH} — film will have VO only "
-              f"(or silence).")
 
     windows = []
     for _, _, _, start, length in vo_items:
@@ -342,7 +347,7 @@ def build_audio(shots, total, out_path, start_of=None):
     sr = "aformat=sample_rates=44100:channel_layouts=stereo"
 
     # music (input 0): ducked + trimmed to total. If no music file, synth silence.
-    if config.MUSIC_PATH.exists():
+    if music_present:
         chains.append(
             f"[0:a]{sr},volume='{duck_volume_expr(windows)}':eval=frame,"
             f"atrim=0:{total},asetpts=PTS-STARTPTS[music]"
