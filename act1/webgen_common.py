@@ -121,25 +121,16 @@ def _resolve_ref(shot):
     return p if p.exists() else None
 
 
-def generate_shot(page, shot, tool, args):
-    """Upload ref_photo (i2v), type the prompt, generate, wait, and download."""
-    sid, prompt = shot["id"], (shot.get("prompt") or "").strip()
-    if not prompt:
-        print(f"  - {sid}: no prompt, skipping")
-        return "no-prompt"
+def _current_src(page, tool):
+    try:
+        return page.locator(tool.video).first.get_attribute("src")
+    except Exception:
+        return None
 
-    # image-to-video: upload the reference photo first
-    if tool.needs_ref_photo:
-        ref = _resolve_ref(shot)
-        if not ref:
-            print(f"    [warn] {sid}: i2v needs ref_photo but '{shot.get('ref_photo')}' not found — skipping")
-            return "no-ref"
-        try:
-            page.locator(tool.upload_input[0]).first.set_input_files(str(ref))
-            page.wait_for_timeout(1500)  # let the upload register
-        except Exception as e:
-            print(f"    [warn] {sid}: ref_photo upload failed ({e}) — check upload_input selectors")
-            return "upload-failed"
+
+def _generate_once(page, prompt, tool, args, out_path):
+    """Type the prompt, generate one clip, wait for a NEW result, and save it."""
+    prev_src = _current_src(page, tool)
 
     box = first_visible(page, tool.prompt_box)
     box.click()
@@ -151,20 +142,66 @@ def generate_shot(page, shot, tool, args):
 
     first_visible(page, tool.generate_btn).click()
 
-    print(f"  · {sid}: generating … (up to {args.gen_timeout}s)")
-    try:
-        page.locator(tool.video).first.wait_for(state="visible", timeout=args.gen_timeout * 1000)
-    except PWTimeout:
-        print(f"    [warn] {sid}: no video within {args.gen_timeout}s — check the page / credits")
+    # Wait for a video whose src differs from the previous take (so take 2+ doesn't
+    # grab take 1's still-visible result).
+    deadline = time.time() + args.gen_timeout
+    while time.time() < deadline:
+        src = _current_src(page, tool)
+        if src and src != prev_src:
+            break
+        page.wait_for_timeout(500)
+    else:
         return "timeout"
-    page.wait_for_timeout(1500)
+    page.wait_for_timeout(1500)  # let the src settle
 
-    out = config.CLIPS_DIR / f"{sid}.mp4"
-    if save_video(page, out, tool):
-        print(f"    ✓ {sid}: saved {out}")
-        return "done"
-    print(f"    [warn] {sid}: generated but download failed (grab it manually, or fix download_btn)")
-    return "no-download"
+    return "done" if save_video(page, out_path, tool) else "no-download"
+
+
+def generate_shot(page, shot, tool, args):
+    """Upload ref_photo (i2v), then generate 1 (or --takes N) clips and install one."""
+    sid, prompt = shot["id"], (shot.get("prompt") or "").strip()
+    if not prompt:
+        print(f"  - {sid}: no prompt, skipping")
+        return "no-prompt"
+
+    # image-to-video: upload the reference photo once before generating
+    if tool.needs_ref_photo:
+        ref = _resolve_ref(shot)
+        if not ref:
+            print(f"    [warn] {sid}: i2v needs ref_photo but '{shot.get('ref_photo')}' not found — skipping")
+            return "no-ref"
+        try:
+            page.locator(tool.upload_input[0]).first.set_input_files(str(ref))
+            page.wait_for_timeout(1500)
+        except Exception as e:
+            print(f"    [warn] {sid}: ref_photo upload failed ({e}) — check upload_input selectors")
+            return "upload-failed"
+
+    takes = max(1, getattr(args, "takes", 1))
+
+    # Single take: write straight to the installed path.
+    if takes == 1:
+        print(f"  · {sid}: generating … (up to {args.gen_timeout}s)")
+        status = _generate_once(page, prompt, tool, args, config.CLIPS_DIR / f"{sid}.mp4")
+        if status == "done":
+            print(f"    ✓ {sid}: saved {config.CLIPS_DIR / f'{sid}.mp4'}")
+        else:
+            print(f"    [warn] {sid}: {status}")
+        return status
+
+    # A/B (N-way): generate N candidates, then auto-pick the best.
+    import besttake
+    tdir = besttake.take_dir(sid)
+    tdir.mkdir(parents=True, exist_ok=True)
+    made = 0
+    for k in range(takes):
+        print(f"  · {sid}: take {k + 1}/{takes} …")
+        if _generate_once(page, prompt, tool, args, tdir / f"take{k + 1}.mp4") == "done":
+            made += 1
+    if made == 0:
+        print(f"    [warn] {sid}: no usable takes")
+        return "timeout"
+    return "done" if besttake.pick_for_shot(shot) else "no-download"
 
 
 def build_argparser(tool, default_types):
@@ -173,6 +210,8 @@ def build_argparser(tool, default_types):
                     help=f"comma list of shot types to generate, or 'all' (default: {default_types})")
     ap.add_argument("--only", nargs="*", help="restrict to these shot ids")
     ap.add_argument("--gen-timeout", type=int, default=300, help="seconds to wait per generation")
+    ap.add_argument("--takes", type=int, default=1,
+                    help="generate N takes per shot and auto-pick the best (A/B best-take)")
     ap.add_argument("--between", type=float, default=3.0, help="pause between shots (seconds)")
     ap.add_argument("--headless", action="store_true", help="run without a visible window (not recommended)")
     ap.add_argument("--inspect", action="store_true",

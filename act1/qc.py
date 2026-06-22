@@ -15,6 +15,8 @@ With --quarantine, flagged clips are MOVED to clips_raw/_rejected/ so the resuma
 generators (webgen_*.py) will re-make them on the next run — re-roll the bad shots
 without touching the good ones.
 
+The measure_files()/score() helpers are reused by besttake.py to rank A/B takes.
+
 Usage:
     python qc.py                      # report only
     python qc.py --only t5 t14
@@ -72,34 +74,52 @@ def freeze_ratio(path, total):
     return min(frozen / total, 1.0)
 
 
-def check_shot(shot, args):
-    """Return a result dict for one shot."""
-    sid = shot["id"]
-    files = util.clip_inputs(shot)
-    res = {"id": sid, "files": [str(p) for p in files], "flags": [], "status": "ok"}
-
+def measure_files(files, min_dur=MIN_DUR, black_max=BLACK_MAX, freeze_max=FREEZE_MAX):
+    """
+    Measure one shot's clip file(s) and return
+    {duration, black, static, flags, status}. Multiple parts are aggregated
+    (durations summed; black/static taken as the worst part). Shared by QC and
+    best-take ranking.
+    """
+    res = {"duration": 0.0, "black": 0.0, "static": 0.0, "flags": [], "status": "ok"}
     if not files:
         res["status"] = "missing"
         return res
-
     total = sum(util.ffprobe_duration(p) or 0.0 for p in files)
     res["duration"] = round(total, 2)
     if total <= 0.05:
         res["status"], res["flags"] = "fail", ["corrupt"]
         return res
-
-    if total < args.min_dur:
+    if total < min_dur:
         res["flags"].append("too-short")
-    # aggregate detection across parts (worst case)
     res["black"] = round(max(black_ratio(p, util.ffprobe_duration(p) or 0.0) for p in files), 2)
     res["static"] = round(max(freeze_ratio(p, util.ffprobe_duration(p) or 0.0) for p in files), 2)
-    if res["black"] > args.black:
+    if res["black"] > black_max:
         res["flags"].append("black")
-    if res["static"] > args.freeze:
+    if res["static"] > freeze_max:
         res["flags"].append("static")
-
     res["status"] = "fail" if res["flags"] else "ok"
     return res
+
+
+def score(m):
+    """
+    Higher is better. Invalid takes (missing/corrupt/too-short) score below zero so a
+    valid take always wins. Otherwise reward clean (low black) and dynamic (low freeze)
+    footage; that's what makes a good "best take".
+    """
+    if m["status"] == "missing" or "corrupt" in m["flags"] or "too-short" in m["flags"]:
+        return -1.0
+    return round((1.0 - m["black"]) + (1.0 - m["static"]), 4)
+
+
+def check_shot(shot, args):
+    """QC one shot's installed clip."""
+    files = util.clip_inputs(shot)
+    m = measure_files(files, args.min_dur, args.black, args.freeze)
+    m["id"] = shot["id"]
+    m["files"] = [str(p) for p in files]
+    return m
 
 
 def quarantine(shot):

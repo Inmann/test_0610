@@ -53,9 +53,12 @@ Verify: `ffmpeg -version` and `python -c "import edge_tts"` should both succeed.
 ## Run order
 
 ```bash
-# 0. Generate clips into clips_raw/ — by hand (playbook below) OR semi-automated for
-#    the t2v shots with webgen_veo.py (drives Google AI Studio Veo — see next section).
-#    You do NOT need them all to start; the dry run uses placeholders.
+# 0a. Sanity-check shots.json (ids, field values, timeline overlaps/gaps, total runtime)
+python validate_shots.py --expect 305
+
+# 0b. Generate clips into clips_raw/ — by hand (playbook below) OR semi-automated for
+#     the t2v/i2v shots with webgen_*.py (drive the free web tools — see next section).
+#     You do NOT need them all to start; the dry run uses placeholders.
 
 # 1. Synthesize voiceover (free, resumable — skips cached/own recordings)
 python tts.py
@@ -139,6 +142,14 @@ python webgen_luma.py --inspect     # sign in once / grab selectors
 python webgen_luma.py --only t12 t18 # the aerial / pull-back shots
 ```
 
+**A/B best-take.** Any generator accepts `--takes N`: it generates N candidates per
+shot into `clips_raw/_takes/{id}/` and auto-installs the best one (see the best-take
+section below). The web tools are non-deterministic, so `--takes 2` is a cheap way to
+dodge a dud:
+```bash
+python webgen_veo.py --takes 2      # 2 takes per shot, keep the better one
+```
+
 **If a step can't find its element** (these sites ship UI changes), the selectors are
 ordered candidate lists (role/text based) at the top of each wrapper — edit them, or
 record fresh ones with:
@@ -176,6 +187,40 @@ re-make exactly those shots on the next run. The loop to re-roll bad shots is:
 python webgen_veo.py     # (and/or seedance/luma) → generate
 python qc.py --quarantine # → cull the bad ones
 python webgen_veo.py     # → regenerate only what was culled
+```
+
+---
+
+## A/B best-take — `besttake.py`
+
+The web tools are non-deterministic: the same prompt can return a great take or a dud.
+Generate several and keep the best. The generators do this for you with `--takes N`
+(candidates land in `clips_raw/_takes/{id}/`); `besttake.py` ranks them and installs
+the winner as `clips_raw/{id}.mp4`.
+
+```bash
+python webgen_veo.py --takes 2     # generate 2 takes/shot, auto-pick the best
+python besttake.py                  # (re)pick from whatever takes already exist
+python besttake.py --only t12 --prune  # pick for one shot, delete the losers
+```
+
+Ranking uses the same yardstick as QC (`qc.measure_files`/`score`): a valid take always
+beats an invalid one (too-short/corrupt/black/static), and among valid takes the
+cleanest + most dynamic wins. A clip that wins here will also pass `qc.py`.
+
+---
+
+## Validating `shots.json` — `validate_shots.py`
+
+`shots.json` is the single source of truth, so a typo there quietly breaks the cut.
+Run this first; it checks ids, field values (`type`, `treatment`, `tool`, `vo_voice`),
+generatability (a `t2v` needs a prompt, an `i2v` needs a `ref_photo`), and the timeline
+(overlaps, gaps, total runtime).
+
+```bash
+python validate_shots.py            # report; exits non-zero on errors
+python validate_shots.py --expect 305   # also assert the total runtime
+python validate_shots.py --strict    # treat warnings as errors (for CI)
 ```
 
 ---
