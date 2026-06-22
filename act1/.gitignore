@@ -1,0 +1,18 @@
+# Generated + large binary assets — never committed (regenerate locally).
+cache/
+output/
+
+# Ignore the *contents* of the input folders (large, personal, machine-local),
+# but keep the empty folders themselves via the .gitkeep exceptions below.
+clips_raw/*
+vo/*
+refs/*
+assets/music/*
+
+!clips_raw/.gitkeep
+!vo/.gitkeep
+!refs/.gitkeep
+!assets/music/.gitkeep
+
+__pycache__/
+*.pyc
