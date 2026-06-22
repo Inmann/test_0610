@@ -94,6 +94,13 @@ shifted to match, so voiceover and music stay in sync. The dissolve is auto-redu
 if a shot is too short to absorb it. Set the default duration / transition style in
 `config.py` (`XFADE_DUR`, `XFADE_TRANSITION`).
 
+**Per-shot transitions.** A shot's optional `"transition"` field overrides the effect
+used as it *enters* (the cut from the previous shot), so you can mix styles — e.g. a
+hard-hitting `fadeblack` into the sleepless beat, a soft `dissolve` into the embrace,
+plain `fade` everywhere else. Any ffmpeg xfade name works (`fade`, `fadeblack`,
+`fadewhite`, `dissolve`, `wipeleft`, `circleopen`, `slideup`, …); `validate_shots.py`
+rejects unknown names before they reach ffmpeg.
+
 ---
 
 ## Semi-automating clip generation — `webgen_*` (optional)
@@ -233,6 +240,19 @@ python validate_shots.py --expect 305   # also assert the total runtime
 python validate_shots.py --strict    # treat warnings as errors (for CI)
 ```
 
+### Continuous integration
+
+`.github/workflows/act1-validate.yml` runs on any change under `act1/**` (path-scoped,
+so it ignores the other projects in this monorepo):
+
+- **validate** — `validate_shots.py --strict --expect 305` + `py_compile` of every script
+  (no ffmpeg/Playwright needed).
+- **smoke** — installs ffmpeg and runs `smoke_test.py`, a ~3-second end-to-end build of a
+  3-shot film from slates with mixed cross-dissolves, asserting the concat, xfade timing,
+  audio mix, and final mux all produce a valid video+audio file.
+
+Run the smoke test locally any time with `python smoke_test.py`.
+
 ---
 
 ## How `shots.json` works
@@ -252,7 +272,8 @@ Each shot:
   "vo_text": "You left the way ...",// voiceover line + burned-in lower-third caption
   "vo_voice": "henry",              // henry | erika (mapped to edge-tts voices in config.py)
   "caption_es": "Te fuiste ...",    // optional Spanish subtitle (second line)
-  "tool": "luma"                    // optional: pin this shot's generator (veo | seedance | luma)
+  "tool": "luma",                   // optional: pin this shot's generator (veo | seedance | luma)
+  "transition": "fadeblack"         // optional: how this shot enters under --xfade (ffmpeg xfade name)
 }
 ```
 

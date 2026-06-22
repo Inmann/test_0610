@@ -259,8 +259,12 @@ def xfade_plan(durs, d):
     return offsets, eff_starts, acc
 
 
-def concat_with_xfade(seg_paths, durs, d, out_path, transition):
-    """Re-encode segments into one track joined by cross-dissolves (xfade)."""
+def concat_with_xfade(seg_paths, durs, d, out_path, transitions):
+    """
+    Re-encode segments into one track joined by cross-dissolves (xfade).
+    `transitions` is a per-cut list (length len(seg_paths)-1) of ffmpeg xfade names,
+    so each cut can use a different effect (e.g. fade, fadeblack, dissolve).
+    """
     offsets, _, _ = xfade_plan(durs, d)
     cmd = ["ffmpeg", "-y"]
     for p in seg_paths:
@@ -270,7 +274,7 @@ def concat_with_xfade(seg_paths, durs, d, out_path, transition):
     for k in range(1, len(seg_paths)):
         out = f"[x{k}]" if k < len(seg_paths) - 1 else "[vx]"
         filters.append(
-            f"{prev}[{k}:v]xfade=transition={transition}:duration={d}:"
+            f"{prev}[{k}:v]xfade=transition={transitions[k - 1]}:duration={d}:"
             f"offset={offsets[k - 1]:.3f}{out}"
         )
         prev = out
@@ -443,8 +447,14 @@ def main():
     print("\n[1/3] building video track …")
     video_concat = config.CACHE_DIR / "video_concat.mp4"
     if d:
+        # per-cut transition: each shot's `transition` field describes how it enters
+        # (the cut from the previous shot); fall back to the configured default.
+        transitions = [(shots[k].get("transition") or config.XFADE_TRANSITION)
+                       for k in range(1, len(shots))]
+        used = ", ".join(sorted(set(transitions)))
+        print(f"  transitions: {used}")
         concat_with_xfade(seg_paths, [float(s["dur"]) for s in shots], d,
-                          video_concat, config.XFADE_TRANSITION)
+                          video_concat, transitions)
     else:
         concat_segments(seg_paths, video_concat)
 

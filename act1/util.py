@@ -40,6 +40,7 @@ def load_shots():
         s.setdefault("prompt", "")
         s.setdefault("ref_photo", "")
         s.setdefault("treatment", "normal")
+        s.setdefault("transition", "")
         s.setdefault("vo_text", "")
         s.setdefault("vo_voice", config.DEFAULT_VOICE)
         s.setdefault("caption_es", "")

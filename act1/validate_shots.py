@@ -61,6 +61,11 @@ def validate(shots, expect_total=None):
         if tool and tool not in VALID_TOOLS:
             errors.append(f"{sid}: tool {tool!r} not in {sorted(VALID_TOOLS)}")
 
+        # transition (optional) — must be a real ffmpeg xfade name, else --xfade crashes
+        trans = (s.get("transition") or "").strip().lower()
+        if trans and trans not in config.XFADE_TRANSITIONS_AVAILABLE:
+            errors.append(f"{sid}: transition {trans!r} is not a known ffmpeg xfade type")
+
         # voice
         voice = (s.get("vo_voice") or "").strip()
         if voice and voice not in config.VOICES:

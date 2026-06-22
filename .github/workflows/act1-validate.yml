@@ -32,3 +32,23 @@ jobs:
       # (py_compile imports nothing, so the web-tool deps aren't required in CI).
       - name: Syntax-check pipeline scripts
         run: python -m py_compile *.py
+
+  # Real (fast) end-to-end assembly: builds a 3-shot film from slates with mixed
+  # cross-dissolves and asserts the outputs are valid. Needs ffmpeg.
+  smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: act1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Assembly smoke test
+        run: python smoke_test.py

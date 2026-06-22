@@ -58,7 +58,22 @@ BLUR_SIGMA = 24                   # gaussian blur strength on the background cop
 # neighbors by XFADE_DUR, so total shrinks by (shots-1)*XFADE_DUR and the audio
 # timeline is shifted to match (A/V stay in sync).
 XFADE_DUR = 0.5                   # seconds of dissolve at each cut
-XFADE_TRANSITION = "fade"         # any ffmpeg xfade type: fade, dissolve, fadeblack, …
+XFADE_TRANSITION = "fade"         # default xfade type when a shot sets no `transition`
+# Per-shot override: a shot's optional "transition" field picks the dissolve used as
+# it enters (the cut from the previous shot). These are ffmpeg xfade transition names.
+XFADE_TRANSITIONS_AVAILABLE = frozenset({
+    "fade", "fadeblack", "fadewhite", "fadegrays", "dissolve", "pixelize",
+    "wipeleft", "wiperight", "wipeup", "wipedown", "wipetl", "wipetr", "wipebl", "wipebr",
+    "slideleft", "slideright", "slideup", "slidedown",
+    "smoothleft", "smoothright", "smoothup", "smoothdown",
+    "circleopen", "circleclose", "circlecrop", "rectcrop",
+    "vertopen", "vertclose", "horzopen", "horzclose",
+    "diagtl", "diagtr", "diagbl", "diagbr",
+    "radial", "distance", "hblur", "zoomin", "fadefast", "fadeslow",
+    "squeezeh", "squeezev",
+    "coverleft", "coverright", "coverup", "coverdown",
+    "revealleft", "revealright", "revealup", "revealdown",
+})
 
 # ---------------------------------------------------------------------------
 # Captions (lower-third, burned in, subtle drop shadow)
