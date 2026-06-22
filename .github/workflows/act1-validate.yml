@@ -1,0 +1,34 @@
+name: act1-validate
+
+# Validate the Act I pipeline's source-of-truth (shots.json) on every change under act1/.
+# Scoped by path so it never runs for the other projects in this monorepo.
+on:
+  push:
+    paths:
+      - "act1/**"
+  pull_request:
+    paths:
+      - "act1/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: act1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # shots.json is the single source of truth — fail the build on any error and,
+      # with --strict, on warnings too (missing ref_photo, unknown voice, timeline gaps).
+      - name: Validate shots.json
+        run: python validate_shots.py --strict --expect 305
+
+      # Catch syntax errors in the pipeline scripts without needing ffmpeg/playwright
+      # (py_compile imports nothing, so the web-tool deps aren't required in CI).
+      - name: Syntax-check pipeline scripts
+        run: python -m py_compile *.py

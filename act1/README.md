@@ -82,7 +82,17 @@ python tts.py --voices spanish      # filter the voice list
 python tts.py --force               # re-synthesize everything
 python assemble.py --force          # rebuild every segment (ignore cache)
 python assemble.py --keep-temp      # keep the intermediate video/audio files
+python assemble.py --xfade          # cross-dissolve between shots (default 0.5s)
+python assemble.py --xfade 1.0      # …with a 1s dissolve
 ```
+
+**Cross-dissolves (`--xfade`).** By default the cut uses hard cuts, keeps the exact
+~305s runtime, and stitches segments with a fast stream-copy. `--xfade [SECONDS]`
+instead dissolves each cut (re-encoding the video). Because a dissolve overlaps
+neighbors, the total shrinks by `(shots-1) × SECONDS` and the audio timeline is
+shifted to match, so voiceover and music stay in sync. The dissolve is auto-reduced
+if a shot is too short to absorb it. Set the default duration / transition style in
+`config.py` (`XFADE_DUR`, `XFADE_TRANSITION`).
 
 ---
 

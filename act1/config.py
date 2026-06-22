@@ -52,6 +52,14 @@ X264_PRESET = "medium"
 # Blurred-fill background (for portrait / odd-ratio source clips)
 BLUR_SIGMA = 24                   # gaussian blur strength on the background copy
 
+# Optional cross-dissolve transitions between shots (assemble.py --xfade). OFF by
+# default — the default build keeps hard cuts, the exact ~305s runtime, and the fast
+# stream-copy concat. With --xfade the video is re-encoded; each transition overlaps
+# neighbors by XFADE_DUR, so total shrinks by (shots-1)*XFADE_DUR and the audio
+# timeline is shifted to match (A/V stay in sync).
+XFADE_DUR = 0.5                   # seconds of dissolve at each cut
+XFADE_TRANSITION = "fade"         # any ffmpeg xfade type: fade, dissolve, fadeblack, …
+
 # ---------------------------------------------------------------------------
 # Captions (lower-third, burned in, subtle drop shadow)
 # ---------------------------------------------------------------------------

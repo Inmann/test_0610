@@ -241,6 +241,48 @@ def concat_segments(seg_paths, out_path):
     ])
 
 
+def xfade_plan(durs, d):
+    """
+    Given each segment's duration, return (offsets, eff_starts, total) for an xfade
+    chain that dissolves consecutive shots by `d` seconds.
+      - offsets[k]    : xfade `offset` that brings in segment k+1
+      - eff_starts[i] : where shot i begins in the dissolved timeline (for audio sync)
+      - total         : dissolved runtime = sum(durs) - (n-1)*d
+    """
+    n = len(durs)
+    offsets, eff_starts = [], [0.0]
+    acc = durs[0]                       # running length of the chain built so far
+    for k in range(1, n):
+        offsets.append(acc - d)         # transition starts d before the chain end
+        eff_starts.append(eff_starts[-1] + durs[k - 1] - d)
+        acc += durs[k] - d
+    return offsets, eff_starts, acc
+
+
+def concat_with_xfade(seg_paths, durs, d, out_path, transition):
+    """Re-encode segments into one track joined by cross-dissolves (xfade)."""
+    offsets, _, _ = xfade_plan(durs, d)
+    cmd = ["ffmpeg", "-y"]
+    for p in seg_paths:
+        cmd += ["-i", str(p)]
+
+    filters, prev = [], "[0:v]"
+    for k in range(1, len(seg_paths)):
+        out = f"[x{k}]" if k < len(seg_paths) - 1 else "[vx]"
+        filters.append(
+            f"{prev}[{k}:v]xfade=transition={transition}:duration={d}:"
+            f"offset={offsets[k - 1]:.3f}{out}"
+        )
+        prev = out
+    filters.append(f"{prev}format={config.PIX_FMT}[vout]")
+
+    cmd += ["-filter_complex", ";".join(filters), "-map", "[vout]"]
+    cmd += ["-c:v", "libx264", "-preset", config.X264_PRESET, "-crf", str(config.X264_CRF),
+            "-pix_fmt", config.PIX_FMT, "-r", str(config.FPS), "-an",
+            "-movflags", "+faststart", str(out_path)]
+    util.run(cmd)
+
+
 # ---------------------------------------------------------------------------
 # Audio
 # ---------------------------------------------------------------------------
@@ -261,8 +303,15 @@ def duck_volume_expr(windows):
     return f"{base}-({base - duck})*({duckamt})"
 
 
-def build_audio(shots, total, out_path):
-    """Lay each VO at its start over looped, ducked music. Returns out_path or None."""
+def build_audio(shots, total, out_path, start_of=None):
+    """
+    Lay each VO at its start over looped, ducked music. Returns out_path or None.
+    `start_of` maps shot id -> start seconds; defaults to each shot's own `start`
+    (overridden with the dissolved-timeline starts when --xfade is used).
+    """
+    def shot_start(s):
+        return float(start_of[s["id"]]) if start_of else float(s["start"])
+
     vo_items = []  # (input_index, shot, vo_path, start, length)
     inputs = ["-stream_loop", "-1", "-i", str(config.MUSIC_PATH)]  # input 0 = music
     idx = 1
@@ -272,7 +321,7 @@ def build_audio(shots, total, out_path):
             continue
         length = util.ffprobe_duration(vo) or 0.0
         inputs += ["-i", str(vo)]
-        vo_items.append((idx, shot, vo, float(shot["start"]), length))
+        vo_items.append((idx, shot, vo, shot_start(shot), length))
         idx += 1
 
     if not config.MUSIC_PATH.exists():
@@ -348,6 +397,10 @@ def main():
                     help="build the full cut using placeholder slates for every shot")
     ap.add_argument("--force", action="store_true",
                     help="rebuild every segment, ignoring the cache")
+    ap.add_argument("--xfade", nargs="?", type=float, const=config.XFADE_DUR, default=None,
+                    metavar="SECONDS",
+                    help=f"cross-dissolve between shots (default {config.XFADE_DUR}s); "
+                         f"re-encodes video and shortens total by (shots-1)*SECONDS")
     ap.add_argument("--keep-temp", action="store_true", help="keep intermediate files")
     args = ap.parse_args()
 
@@ -371,22 +424,42 @@ def main():
               f"dur={float(shot['dur']):>4.1f}s  {shot.get('treatment','normal'):<11} "
               f"{shot.get('scene','')}")
 
-    print("\n[1/3] concatenating video track …")
+    # --xfade: dissolve between shots. Re-encodes the video, shifts the audio
+    # timeline to match, and shortens the total runtime by (shots-1)*d.
+    start_of, video_total = None, total
+    d = args.xfade
+    if d:
+        durs = [float(s["dur"]) for s in shots]
+        too_short = [s["id"] for s, du in zip(shots, durs) if du <= 2 * d]
+        if too_short:
+            d = min(min(durs) / 2 - 0.01, d)
+            print(f"  [warn] --xfade reduced to {d:.2f}s so it fits the shortest shot(s): "
+                  f"{', '.join(too_short)}")
+        _, eff_starts, video_total = xfade_plan(durs, d)
+        start_of = {s["id"]: es for s, es in zip(shots, eff_starts)}
+        print(f"  cross-dissolve {d:.2f}s × {len(shots) - 1} cuts → "
+              f"runtime {video_total:.1f}s (was {total:.1f}s)")
+
+    print("\n[1/3] building video track …")
     video_concat = config.CACHE_DIR / "video_concat.mp4"
-    concat_segments(seg_paths, video_concat)
+    if d:
+        concat_with_xfade(seg_paths, [float(s["dur"]) for s in shots], d,
+                          video_concat, config.XFADE_TRANSITION)
+    else:
+        concat_segments(seg_paths, video_concat)
 
     print("[2/3] building ducked audio mix …")
     audio_mix = config.CACHE_DIR / "audio_mix.m4a"
-    build_audio(shots, total, audio_mix)
+    build_audio(shots, video_total, audio_mix, start_of=start_of)
 
     print("[3/3] muxing final film …")
-    mux(video_concat, audio_mix, total, config.OUTPUT_FILE)
+    mux(video_concat, audio_mix, video_total, config.OUTPUT_FILE)
 
     if not args.keep_temp and not args.dry_run:
         for f in (video_concat, audio_mix, config.CACHE_DIR / "concat.txt"):
             f.unlink(missing_ok=True)
 
-    print(f"\n✅ wrote {config.OUTPUT_FILE}  ({total:.1f}s)")
+    print(f"\n✅ wrote {config.OUTPUT_FILE}  ({video_total:.1f}s)")
     if missing and not args.dry_run:
         print(f"\n⚠  {len(missing)} shot(s) still need clips (placeholder slates used): "
               f"{', '.join(missing)}")
