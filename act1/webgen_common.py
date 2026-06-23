@@ -44,6 +44,10 @@ class Tool:
     upload_input: list = field(default_factory=list)  # file-input selectors (i2v)
     needs_ref_photo: bool = False   # True for tools that REQUIRE a ref image (e.g. Seedance)
     menu_btn: list = field(default_factory=list)  # optional "…/More" control to open before Download
+    # Optional UI settings controls, keyed by name (e.g. "model", "aspect", "length").
+    # Each value is a list of candidate selectors for the control that opens that
+    # dropdown/segmented-picker. The chosen value's visible text is clicked as the option.
+    settings_controls: dict = field(default_factory=dict)
 
     @property
     def profile_dir(self) -> Path:
@@ -65,6 +69,44 @@ def first_visible(page, selectors, timeout=8000):
                 last = e
         page.wait_for_timeout(250)
     raise PWTimeout(f"none of these became visible: {selectors} ({last})")
+
+
+def select_option(page, control_selectors, value, label):
+    """Open a settings control and click the option whose visible text matches `value`
+    (e.g. model='Veo 3 Fast', aspect='16:9', length='8s'). Best-effort: warns on miss."""
+    if not value:
+        return False
+    try:
+        first_visible(page, control_selectors, timeout=4000).click()
+        page.wait_for_timeout(400)
+        opts = [
+            f"[role='option']:has-text(\"{value}\")",
+            f"[role='menuitem']:has-text(\"{value}\")",
+            f"[role='radio']:has-text(\"{value}\")",
+            f"li:has-text(\"{value}\")",
+            f"button:has-text(\"{value}\")",
+            f"text=\"{value}\"",
+        ]
+        first_visible(page, opts, timeout=4000).click()
+        page.wait_for_timeout(300)
+        print(f"    set {label} = {value!r}")
+        return True
+    except Exception as e:
+        print(f"    [warn] couldn't set {label}={value!r} ({e}) — set it once in the UI, "
+              f"or fix settings_controls['{label}'] (use --inspect)")
+        return False
+
+
+def apply_settings(page, tool, args):
+    """Apply --model/--aspect/--length once, for tools that expose those controls."""
+    wanted = {"model": getattr(args, "model", None),
+              "aspect": getattr(args, "aspect", None),
+              "length": getattr(args, "length", None)}
+    for name, value in wanted.items():
+        if value and name in tool.settings_controls:
+            select_option(page, tool.settings_controls[name], value, name)
+        elif value:
+            print(f"    [warn] {tool.name} has no '{name}' control configured — ignoring --{name}")
 
 
 def ensure_ready(page, tool):
@@ -223,6 +265,11 @@ def build_argparser(tool, default_types):
     ap.add_argument("--takes", type=int, default=1,
                     help="generate N takes per shot and auto-pick the best (A/B best-take)")
     ap.add_argument("--between", type=float, default=3.0, help="pause between shots (seconds)")
+    # UI settings (applied once after login, for tools that expose the control —
+    # e.g. Flow). Pass the exact visible label shown in the UI.
+    ap.add_argument("--model", help="model picker value, e.g. 'Veo 3' or 'Veo 3 Fast'")
+    ap.add_argument("--aspect", help="aspect-ratio value, e.g. '16:9', '9:16', '1:1'")
+    ap.add_argument("--length", help="clip-length value, e.g. '8s' (UI-dependent)")
     ap.add_argument("--headless", action="store_true", help="run without a visible window (not recommended)")
     ap.add_argument("--inspect", action="store_true",
                     help="open the tool paused so you can log in / grab selectors, then exit")
@@ -254,6 +301,7 @@ def run(tool, default_types):
             return
 
         ensure_ready(page, tool)
+        apply_settings(page, tool, args)  # model / aspect / length, once
 
         counts = {}
         for shot in shots:
