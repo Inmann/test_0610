@@ -112,12 +112,36 @@ to `clips_raw/{id}.mp4`. **Resumable** (skips shots that already have a clip).
 
 | Script | Tool | Shots | Input |
 |---|---|---|---|
+| `webgen_flow.py` | Google **Flow** (Veo, **paid AI subscription**) | **t2v + i2v** — one tool for everything | `prompt` (+ `ref_photo` when present) |
 | `webgen_veo.py` | Google AI Studio (**Veo**) | `t2v` — locations, skies, the map | `prompt` (text-to-video) |
 | `webgen_seedance.py` | **Seedance** | `i2v` — people / couple shots | `ref_photo` + `prompt` (image-to-video) |
 | `webgen_luma.py` | **Luma** Dream Machine | `t2v` — big camera moves (dolly/aerial) | `prompt` (text-to-video) |
 
-All three share one engine (`webgen_common.py`); the wrappers just hold each site's
-URL and selectors.
+They share one engine (`webgen_common.py`); the wrappers just hold each site's URL and
+selectors.
+
+### Using a paid Google AI subscription — `webgen_flow.py`
+
+If you subscribe to **Google AI (Plus / Pro / Ultra)**, Veo is available in **Flow**
+(`labs.google/flow`). `webgen_flow.py` drives Flow and is your single tool for the
+whole film: it runs **t2v** for location shots and **i2v** (uploads the `ref_photo`)
+for people shots automatically — whichever each shot needs.
+
+> ⚠️ **Before you pay:** confirm your tier actually includes Flow/Veo and check its
+> **monthly generation limits**. The lower (Plus) tier can be Veo-limited or
+> region-restricted; Pro/Ultra give the most Veo. A subscription unlocks the **web UI**
+> (what this automates) — it is **not** an API key.
+
+```bash
+python webgen_flow.py --inspect     # sign in with your subscription account / grab selectors
+python webgen_flow.py               # generate every shot that has no clip yet (t2v + i2v)
+python webgen_flow.py --takes 2     # A/B best-take per shot
+```
+
+Flow's UI shifts often, so if a step can't find its element, re-grab selectors with
+`--inspect` (or `playwright codegen labs.google/flow`) and edit the lists at the top of
+`webgen_flow.py`. Download is handled even when it's hidden behind a clip's "⋯/More"
+menu (`menu_btn`), with the in-page `<video>` fetch as a fallback.
 
 **Routing a shot to a specific tool.** Veo and Luma are both text-to-video. By
 default a generator picks up the shots matching its type; to pin a shot to one tool,

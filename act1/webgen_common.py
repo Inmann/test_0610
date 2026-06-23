@@ -41,8 +41,9 @@ class Tool:
     generate_btn: list              # candidate selectors for the generate/run button
     download_btn: list              # candidate selectors for the download control
     video: str = "video"            # selector for the resulting <video>
-    upload_input: list = field(default_factory=list)  # file-input selectors (i2v only)
-    needs_ref_photo: bool = False   # True for image-to-video tools
+    upload_input: list = field(default_factory=list)  # file-input selectors (i2v)
+    needs_ref_photo: bool = False   # True for tools that REQUIRE a ref image (e.g. Seedance)
+    menu_btn: list = field(default_factory=list)  # optional "…/More" control to open before Download
 
     @property
     def profile_dir(self) -> Path:
@@ -83,6 +84,13 @@ def save_video(page, out_path, tool):
     <video> source bytes (works for blob: and same-origin URLs) via in-page fetch."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        # some UIs (e.g. Flow) hide Download behind a "…/More" menu — open it first
+        if tool.menu_btn:
+            try:
+                first_visible(page, tool.menu_btn, timeout=3000).click()
+                page.wait_for_timeout(500)
+            except Exception:
+                pass
         btn = first_visible(page, tool.download_btn, timeout=4000)
         with page.expect_download(timeout=60000) as dl:
             btn.click()
@@ -164,12 +172,14 @@ def generate_shot(page, shot, tool, args):
         print(f"  - {sid}: no prompt, skipping")
         return "no-prompt"
 
-    # image-to-video: upload the reference photo once before generating
-    if tool.needs_ref_photo:
-        ref = _resolve_ref(shot)
-        if not ref:
-            print(f"    [warn] {sid}: i2v needs ref_photo but '{shot.get('ref_photo')}' not found — skipping")
-            return "no-ref"
+    # Reference image: upload it when the shot has one AND the tool can upload. This
+    # lets a single tool (e.g. Flow) do both t2v (no ref) and i2v (ref present); a
+    # ref-only tool (Seedance) still hard-requires one.
+    ref = _resolve_ref(shot) if tool.upload_input else None
+    if tool.needs_ref_photo and not ref:
+        print(f"    [warn] {sid}: i2v needs ref_photo but '{shot.get('ref_photo')}' not found — skipping")
+        return "no-ref"
+    if ref:
         try:
             page.locator(tool.upload_input[0]).first.set_input_files(str(ref))
             page.wait_for_timeout(1500)
