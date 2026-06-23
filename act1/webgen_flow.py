@@ -24,7 +24,13 @@ Usage:
     python webgen_flow.py                      # generate every shot with no clip yet
     python webgen_flow.py --only t2 t5         # just these shot ids
     python webgen_flow.py --takes 2            # A/B best-take per shot
+    python webgen_flow.py --model "Veo 3 Fast" --aspect "16:9" --length "8s"
     python webgen_flow.py --gen-timeout 360
+
+Model / aspect / length: pass the EXACT visible label from Flow's UI. They're applied
+once after login (the picker selectors live in FLOW.settings_controls below). For this
+film use --aspect "16:9" (matches the 1920×1080 assemble). Veo caps clip length (≈8s),
+so long shots are generated in parts ({id}_a.mp4 + {id}_b.mp4) — both are supported.
 """
 
 from webgen_common import Tool, run
@@ -66,6 +72,31 @@ FLOW = Tool(
         "button[aria-label*='download' i]",
     ],
     video="video",
+    # Controls that open each settings picker. The chosen value (e.g. --model
+    # 'Veo 3 Fast', --aspect '16:9', --length '8s') is then clicked by its visible
+    # text. Selectors are best-effort — refine with --inspect if a control is missed.
+    settings_controls={
+        "model": [
+            "button[aria-label*='model' i]",
+            "button:has-text('Veo')",
+            "button:has-text('Model')",
+            "[role='combobox'][aria-label*='model' i]",
+        ],
+        "aspect": [
+            "button[aria-label*='aspect' i]",
+            "button[aria-label*='ratio' i]",
+            "button:has-text('Aspect')",
+            "button:has-text('16:9')",
+            "button:has-text('9:16')",
+        ],
+        "length": [
+            "button[aria-label*='length' i]",
+            "button[aria-label*='duration' i]",
+            "button:has-text('Length')",
+            "button:has-text('sec')",
+            "button:has-text('s ')",
+        ],
+    },
 )
 
 if __name__ == "__main__":

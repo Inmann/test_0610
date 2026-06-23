@@ -136,7 +136,15 @@ for people shots automatically — whichever each shot needs.
 python webgen_flow.py --inspect     # sign in with your subscription account / grab selectors
 python webgen_flow.py               # generate every shot that has no clip yet (t2v + i2v)
 python webgen_flow.py --takes 2     # A/B best-take per shot
+python webgen_flow.py --model "Veo 3 Fast" --aspect "16:9" --length "8s"
 ```
+
+**Model / aspect / length.** `--model`, `--aspect`, `--length` are applied once after
+login by clicking Flow's settings pickers (selectors in `FLOW.settings_controls`). Pass
+the **exact visible label** from the UI (e.g. `--model "Veo 3 Fast"` to save credits,
+`--aspect "16:9"` to match the 1920×1080 cut). Veo caps a clip at ≈8s, so long shots
+are generated in parts (`{id}_a.mp4` + `{id}_b.mp4`, both supported by `assemble.py`).
+If a picker is missed, refine it with `--inspect`.
 
 Flow's UI shifts often, so if a step can't find its element, re-grab selectors with
 `--inspect` (or `playwright codegen labs.google/flow`) and edit the lists at the top of
